@@ -1,0 +1,60 @@
+HTML, BODY{
+	display: block;
+	margin: 0;
+	padding:0;
+	height: 100%;
+	overflow: hidden;
+}
+
+#sup {
+	position: absolute;
+	top:0;
+	left:0;
+	right: 0;
+	height: 64px;
+	overflow: hidden;
+	background-color: #007eff;
+	min-width: 690px;
+}
+
+#central{
+	position: absolute;
+	top:64px;
+	bottom: 32px;
+	left: 0;
+	right: 0;
+}
+
+#left_pan{
+	height: 100%;
+	overflow-y:scroll;
+	width: 300px;
+	float:left;
+	/*border: 3px solid#73Ad21;*/
+}
+
+#right_pan{
+	height: 100%;
+	overflow-y: scroll;
+	width: 100px;
+	float: right;
+
+}
+
+#center_pan{
+	overflow: scroll;
+	height: 100%;
+
+}
+#inf_pan{
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 32px;
+	overflow: hidden;
+}
+
+.margen{
+	padding: 16px;
+}
