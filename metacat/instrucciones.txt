@@ -1,0 +1,595 @@
+
+################################################################# Características del equipo #################################################################
+El equipo en el cual se configuró metacat consiste en una máquina virtual en VMware Workstation 12 Player con las siguientes carracterísticas:
+
+Sistema Operativo: CentOS 7 (En su versión "minimal")
+RAM: 4 GB
+Espacio libre en disco: 20 GB
+
+Para utilizar el ambiente grafico gnome, se realizó lo siguiente:
+
+	yum groupinstall "X Window System"
+	yum install gnome-classic-session gnome-terminal nautilus-open-terminal control-center liberation-mono-fonts
+	unlink /etc/systemd/system/default.target
+	ln -sf /lib/systemd/system/graphical.target /etc/systemd/system/default.target
+	reboot
+
+La documentación completa sobre la instalación y configuración, en la que se basó este proyecto, se encuentra en la página oficial de Metacat: https://knb.ecoinformatics.org/knb/docs/
+
+
+
+############################################################### Instalación de pre-requisitos ###############################################################
+
+Para instalar Metacat correctamente es necesario que el equipo cuente con los siguientes requisitos:
+•	PostgreSQL
+•	Tomcat 7
+•	Apache HTTPD
+•	Java 7
+Los pasos requeridos para instalar los requisitos en un equipo Linux se mencionan en la sección 4.2.3. Installing and Configuring Required Software del manual de Metacat. Las librerias instaladas en el equipo fueron las siguientes:
+
+################## Java 7
+	sudo yum install java-1.7.0-openjdk
+
+################## apache
+	sudo yum -y install httpd
+
+
+########################## Cambiar puerto del servicio Apache #######################
+
+En caso de que el puerto utilizado por Apache (80) este siendo ocupado por otro servicio, será necesario cambiar el puerto del servicio de httpd, para ello podemos realizar las siguientes instrucciones:
+
+	Ubicar el archivo "httpd.conf" y editarlo: gedit /etc/httpd/conf/httpd.conf
+
+	Buscar la linea que especifica el puerto y cambiarlo por el nuevo (81): 
+		Listen 81
+
+
+SELinux puede estar bloqueando el nuevo puerto asignado al servicio de apache. Una manera de listar los puertos habilitados por SELinux para el servicio web es ejecutando la siguiente instrucción:
+
+	semanage port -l | grep -w '^http_port_t'
+
+El comando anterior mostrará los puertos habilitados, en caso de que no se encuentre el puerto 81, será necesario agregarlo de la siguiente manera:
+
+	semanage port -a -t http_port_t -p tcp 81
+
+Podemos verificar el cambio ejecutando de nuevo el comando para listar los puertos habilitados por SELinux para el servicio de Apache. Si no hay errores bastará con reiniciar el servicio de Apache para que utilice el nuevo puerto.
+
+
+
+################## tomcat
+	sudo yum -y install tomcat
+
+ Una vez instalado es necesario verificar que la opción del conector AJP en el puerto 8009 este descomentado, esta opción se encuentra en el archivo "server.xml"
+ 	/etc/tomcat/server.xml
+
+##################  PostgreSQL
+Se instala el servicio de postgres y se inicia para crear una nueva BD y un usuario para Metacat:
+
+	sudo yum install postgresql-server postgresql-contrib
+
+	sudo postgresql-setup initdb
+
+	service postgresql start
+
+	sudo su postgres
+
+	createdb metacat
+
+
+	psql metacat
+
+	CREATE USER metacat WITH UNENCRYPTED PASSWORD 'your_password';
+
+
+Durante la instalación de PostgreSQL será necesario editar el archivo pg_hba.conf para habilitar la autenticación de usuario por contraseña, esto se hace agregando la siguiente línea al archivo:
+
+host    metacat         metacat   127.0.0.1 255.255.255.255     password
+
+En el repositorio de github se encuentra este y otros archivos para su consulta.
+
+
+Al terminar estos pasos se tiene que reiniciar el servicio de postgres y se puede verificar la nueva configuración al iniciar ingresar a la BD con el usuario definido:
+	psql -U metacat -h localhost -d metacat -W
+
+
+
+
+####################################################### Descarga e instalación de Metacat #####################################################################
+
+En la página oficial de Metacat se encuentran disponibles los archivos instaladores de Metacat, descargar el archivo metacat-bin-2.7.2.tar.gz y posteriormente extraer su contenido utilizando:
+	tar -xvzf metacat-bin-X.X.X.tar.gz lo cual generará un archivo .war.
+
+Crear un nuevo directorio en donde se guardará la información de datos, meta-datos y archivos temporales de metacat. Por lo tanto este nuevo directorio debe de estar fuera del directorio de la aplicación de Tomcat, en este caso el directorio es el siguiente:
+	mkdir /var/metacat
+Ahora se cambiará de propietario de la carpeta al usuario de tomcat
+	chown -R <tomcat_user>:<tomcat_group> /var/metacat
+
+Lo siguiente es copiar el archivo metacat.war dentro del directorio webapps de tomcat. El nombre que se le de al archivo .war en el destino será el que aparecerá en la URL de metacat por lo cual se recomienda utilizar un nombre alusivo a la organización
+	cp <metacat_package_dir>/metacat.war /var/lib/tomcat/webapps/
+Al terminar será necesario reiniciar el servicio de tomcat, y una vez que inicie se puede verificar la instalación de metacat ingresando en un navegador web la dirección del servidor en la siguiente ruta la cual mostrará una página con de configuración inicial del repositorio:
+	http://direcciondelservidor:8080/metacat/
+
+
+
+
+####################################################### Instalación y configuración de mod_jk en apache #######################################################
+
+La instalación de apache es necesaria para implementar características como replicación y registro de Metacat, por lo cual es recomendable instalar Apache y que trabaje detrás de Tomcat. Por lo tanto se debe de instalar apache2 y apache-modjdk. Para este último es necesario descargar y compilar un conector de tomcat.
+
+Los pasos mostrados a continuación se realizaron tras consultar dos fuentes web que muestran la configuración de mod_jk en CentOS (http://mypunitshah.blogspot.mx/ y http://www.diegoacuna.me/installing-mod_jk-on-apache-httpd-in-centos-6-x7-x/).
+
+El primer paso consiste en instalar las siguientes librerías:
+
+	yum install httpd-devel apr apr-devel apr-util apr-util-devel gcc gcc-c++
+
+A continuación, descargar el conector de tomcat utilizando el comando wget para guardarlo en el equipo:
+	wget http://www.eu.apache.org/dist/tomcat/tomcat-connectors/jk/tomcat-connectors-1.2.42-src.tar.gz
+En caso de que el archivo no se encuentre disponible, buscar la versión más reciente del archivo .tar.
+
+Una vez descargado el archivo se extraerá y nos ubicaremos en la carpeta “native” dentro de la nueva ruta generada y ejecutamos dos instrucciones. En la parte de “./configure” la ruta del archivo apxs puede variar, se recomienda primero buscar el archivo y poner su ubicación en el comando:
+	tar -xvzf tomcat-connectors-1.2.42-src.tar.gz
+	cd tomcat-connectors-1.2.42-src/native
+
+	./configure --with-apxs=/usr/bin/apxs
+	make
+
+Copiar el archivo mod_jk.so, ubicado en la carpeta “apache-2.0”, en el directorio de módulos de apache:
+	cd apache-2.0
+	cp mod_jk.so /etc/httpd/modules
+Al terminar se deberá reiniciar el servicio de apache.
+Una vez que se instale Apache, modificar el archivo httpd.conf agregando lo siguiente:
+
+LoadModule jk_module /etc/httpd/modules/mod_jk.so
+
+<IfModule mod_jk.c>
+	JkLogFile "/var/log/httpd/mod_jk.log"
+	JkLogLevel info
+</IfModule>
+
+Y al final del archivo se agregará lo siguiente para dirigir el tráfico a la aplicación de Metacat.
+<VirtualHost <direcciondelservidor>:80>
+	DocumentRoot /var/www
+	AddHandler cgi-script .cgi
+	ServerName <direcciondelservidor>
+	ErrorLog /var/log/httpd/error_log
+	CustomLog /var/log/httpd/access_log common
+	ScriptAlias /cgi-bin/ "/var/www/cgi-bin/"
+	<Directory /var/www/cgi-bin/>
+		Require all granted
+		AllowOverride None
+		Options ExecCGI
+		Order allow,deny
+		Allow from all
+	</Directory>
+	ScriptAlias /metacat/cgi-bin/ "/var/lib/tomcat/webapps/metacat/cgi-bin/"
+	<Directory "/var/lib/tomcat/webapps/metacat/cgi-bin/">
+		Require all granted
+		Options  +ExecCGI
+	</Directory>
+	JkMount /metacat ajp13
+	JkMount /metacat/* ajp13
+	JkMount /metacat/metacat ajp13
+	JkUnMount /metacat/cgi-bin/* ajp13
+	JkMount /*.jsp ajp13
+</VirtualHost>
+
+Adicionalmente se incluyen este y otros archivos de configuración del servidor dentro del repositorio en github para su consulta.
+
+Ahora es necesario copiar el archivo “workers.properties” en el directorio de Apache. Este archivo se encuentra en la ruta “/var/lib/tomcat/webapps/metacat/WEB-INF/scripts/debían/” y se copiará en “/etc/httpd/conf/”.
+
+Por último se debe de modificar el archivo “workers.properties” dentro de apache y verificar que los siguientes valores apunten a la ruta correcta:
+workers.tomcat_home=/usr/share/tomcat
+workers.java_home=/usr/lib/jvm/java-1.7.0-openjdk
+
+Será necesario reiniciar el servicio de apache para cargar los cambios.
+
+
+
+
+################################################################## Configuración de Metacat #####################################################################
+
+#################### Autenticación
+
+Metacat soporta dos mecanismos de autenticación para el servidor, uno es mediante la utilización de un archivo local que guarda de manera encriptada las contraseñas de los usuarios. La segunda forma es utilizar un servidor LDAP, éste puede ser un servidor externo o se puede crear uno propio.
+El método que se eligió fue el de un archivo de contraseñas. La documentación completa que describe ambos métodos se encuentra dentro de la sección “5.1. Initial Configuration” del manual de Metacat.
+
+La configuración de Metacat se puede realizar mediante un navegador web con la dirección: http://direcciondelservidor:8080/metacat/admin o se puede editar directamente el archivo “/var/lib/tomcat/webapps/metacat/WEB-INF/metacat.properties”.
+
+Para agregar al usuario que servirá como administrador, se utilizó el script de metacat “/var/lib/tomcat/webapps/metacat/WEB-INF/scripts/bash/authFileManager.sh” por lo cual es necesario cambiarnos con cd al directorio en donde se encuentra.
+Primero se debe de verificar que el archivo sea ejecutable, se puede utilizar el comando "chmod u+x authFileManager.sh" y a continuación realizamos lo siguiente:
+Creamos el grupo de administradores de la siguiente manera:
+	./authFileManager.sh groupadd -g cn=admin,o=NCEAS,dc=ecoinformatics,dc=org -d "Metacat Admin"
+Lo siguiente es crear y agregar al grupo un usuario:
+	./authFileManager.sh useradd -i -dn uid=admin,o=NCEAS,dc=ecoinformatics,dc=org -g cn=admin,o=NCEAS,dc=ecoinformatics,dc=org
+El comando anterior te solicitará una contraseña para el nuevo usuario, la cual será encriptada y guardada en el archivo “password.xml”.
+Podemos ver la configuración si en el archivo “/var/metacat/users/password.xml” ya se encuentran agregados los datos de la cuenta. Será necesario reiniciar el servicio de Tomcat.
+
+El script anterior creará/modificará el archivo password.xml, será necesario cambiar de propietario al usuario de tomcat:
+	chown -R tomca:tomcat /var/metacat/users/
+
+La configuración inicial restante se realizó siguiendo las instrucciones del manual de Metacat, utilizando la base de datos de metacat en prosgresql y dejando como skin a “default”.
+
+
+
+#################### Instalación del registro de Metacat
+
+Esta opción es necesaria para habilitar la función utilizada al momento de ingresar datos y metadatos al servidor de Metacat utilizando un script.
+En la sección “7.2.1. Installing the Registry” del manual de Metacat, se encuentran las instrucciones para habilitar esta opción. Debido a que el sistema en el que se encuentra el servidor se trata de CentOS 7 las instrucciones varían un poco.
+
+Lo primero es instalar las siguientes librerías:
+	yum install gcc libxml2-devel libxslt-devel ant -y
+
+Ahora instalar CPAN para utilizar el registro de Metacat, en caso de que pregunte por alguna configuración u opción durante el proceso responder “yes” o presionar enter:
+	sudo yum install perl-CPAN
+	sudo cpan
+Dentro de CPAN actualizamos a la versión más reciente y reiniciamos:
+	install Bundle::CPAN
+	reload cpan
+
+Al reiniciarse, ingresar de nuevo a CPAN e instalar lo siguiente, de nuevo responder si en caso de preguntas sobre la configuración:
+ 
+	install AutoLoader
+	install Config::Properties
+	install Scalar::Util
+	install CGI
+	install CGI::Session
+	install LWP::UserAgent
+	install Net::LDAP
+	install Template
+	install URI
+	install MSERGEANT/XML-LibXSLT-1.58.tar.gz ó install SHLOMIF/XML-LibXSLT-1.95.tar.gz
+	install Captcha:reCAPTCHA
+	install DateTime
+	install Crypt::JWT
+	install Crypt::X509
+	install Digest::SHA1
+	install XML::LibXSLT
+ 
+
+Al terminar las instalaciones, salir de CPAN con “exit”.
+
+*** Adicionalmente instalar la librería LibXML desde la línea de comandos de CentOS: 
+	yum install perl-XML-LibXML
+
+Cambiar de propietario del folder temporal de metacat por el usuario de apache y que pueda escribir sobre este, y garantizar que el grupo tomcat (grupo propietario de la carpeta temporal) igualmente tenga permisos de escritura, el objetivo es garantizar que tanto el usuario de apache y tomcat puedan escribir en este directorio. La ruta del archivo temporal de metacat es “/var/metacat/temporary/”.
+También se debe de asegurar de que los archivos .cgi de metacat sean ejecutables, para ello podemos hacer lo siguiente:
+	chmod +x /var/lib/tomcat/webapps/metacat/cgi-bin/*.cgi
+Editar el archivo register-dataset-cgi, y agregar las siguientes líneas en caso de que no las tenga:
+	use lib '../WEB-INF/scripts';
+	use lib '../WEB-INF/lib';
+
+Buscar el archivo LibXML.pm y copiarlo dentro del directorio (Crearlo si no existe) “/var/lib/tomcat/webapps/metacat/WEB-INF/scripts/auto/Metacat/” y cambiar de propietario y grupo a tomcat. Copiar también el archivo “autosplit.ix”, en caso de no conocer su ubicación se puede buscar con el comando "find / -name autosplit.ix"
+
+	cp /root/.cpan/build/XML-LibXML-2.0128-1/LibXML.pm /var/lib/tomcat/webapps/metacat/WEB-INF/scripts/auto/Metacat/
+	
+Por último reiniciar el servicio de apache, si no hay problemas se podrá acceder al registro de metacat desde un navegador web con la siguiente URL la cual mostrará un formulario de "login":
+	http://direcciondelservidor/metacat/cgi-bin/register-dataset.cgi?cgf=default
+
+
+
+##################################### Permisos de SELinux ###########################################
+
+########### *NOTA ###################
+En caso de bloqueos realizados por las politicas de SElinux es posible ver los errores y sugerencias para solucionarlos en el archivo "audit.log". Con el siguiente comando se muestran los errores y posibles soluciones:
+
+	sealert -a /var/log/audit/audit.log
+
+
+
+
+############### Agregar permisos de escritura a SElinux
+Si marca error con SElinux, reemplazar el "type" de los archivos que esten en conflicto. Un ejemplo es el siguiente error:
+
+	SELinux is preventing /usr/sbin/httpd from write access on the file /var/log/httpd/jk-runtime-status.5151.
+
+Para resolverlo hacemos lo siguiente:
+	+listar las propiedades de SElinux para el archivo jk-runtime:
+		ls -Z /var/log/httpd
+
+Cambiar el tipo de directiva a "httpd_sys_rw_content_t" al archivo anterior
+
+	+semanage fcontext -a -t httpd_sys_rw_content_t "/var/log/httpd(/.*)?";
+	+restorecon -RvF /var/log/httpd/
+
+##################### Permisos de ejecucion al script cgi de metacat con SElinux:
+	+semanage fcontext -a -t httpd_exec_t "/var/lib/tomcat/webapps/repository/cgi-bin(/.*)?";
+
+	+restorecon -RvF /var/lib/tomcat/webapps/repository/cgi-bin/
+
+
+###################### Cambiar las directivas de SElinux para las siguientes rutas:
+
+	+semanage fcontext -a -t httpd_sys_content_t /var/lib/tomcat/webapps/repository/WEB-INF/lib/Metacat.pm
+
+	+restorecon -vF /var/lib/tomcat/webapps/repository/WEB-INF/lib/Metacat.pm
+
+
+############# La siguiente directiva debe de realizarse cada vez que se reinicie el servicio de Metacat.
+	+semanage fcontext -a -t httpd_sys_content_t /var/lib/tomcat/webapps/repository/WEB-INF/metacat.properties
+
+	+restorecon -vF /var/lib/tomcat/webapps/repository/WEB-INF/metacat.properties
+
+
+
+	+semanage fcontext -a -t httpd_sys_content_t "/var/lib/tomcat/webapps/repository/WEB-INF/scripts/auto/Metacat(/.*)?";
+
+	+restorecon -RvF /var/lib/tomcat/webapps/repository/WEB-INF/scripts/auto/Metacat/
+
+
+############# Cambiar la directiva SElinux de la carpeta temporal de metacat:
+	+semanage fcontext -a -t var_t "/var/metacat/temporary(/.*)?";
+
+	+restorecon -RvF /var/metacat/temporary/
+
+
+###############Copiar la libreria de CGI/Session.pm en el directorio de tomcat y asignarle la directiva de SElinux:
+
+	cp -R /root/perl5/lib/perl5/CGI/ /var/lib/tomcat/webapps/repository/WEB-INF/scripts/
+
+	+semanage fcontext -a -t httpd_sys_content_t "/var/lib/tomcat/webapps/repository/WEB-INF/scripts/CGI(/.*)?";
+
+	+restorecon -RvF /var/lib/tomcat/webapps/repository/WEB-INF/CGI/
+
+
+
+Checar si el valor de httpd_can_network_connect es verdadero (on) con el comando:
+	getsebool -a | grep httpd
+
+Si no esta activado, ejecutar el siguiente comando:
+	setsebool -P httpd_can_network_connect 1
+
+Verificar que el valor cambió a "on".
+
+En caso de que se tengan errores con la BD, una posible solucion es habilitar la opción "httpd_can_network_connect_db" con el siguiente comando:
+	setsebool -P httpd_can_network_connect_db 1
+
+
+################################# Permisos de SElinux para java
+setsebool -P httpd_execmem 1
+
+
+
+#########################################################
+#INSTRUCCIONES PARA AGREGAR NUEVO INPUT EN EL FORMULARIO#
+#########################################################
+
+Editar los archivos siguientes agregando el nuevo input que se desea, en este caso es "metaid" y debe de agregarse la siguiente linea dentro de los formularios de los archivos:
+
+	<input type="hidden" name="metaid" value="[% metaid %]" />
+
+/var/lib/tomcat/webapps/metacat/style/common/templates/metacatui/entryForm.tmpl
+/var/lib/tomcat/webapps/metacat/style/common/templates/metacatui/confirmData.tmpl
+/var/lib/tomcat/webapps/metacat/style/common/templates/metacatui/genericResponse.tmpl
+
+Esto solo genera el input, pero no asigna el valor que se pasa por metodo post. Para ello es necesario agregar
+las siguientes lineas en el archivo "register-dataset.cgi" 
+
+//Para agregar el nuevo valor "metaid" agregar lo siguiente en la seccion de "sub toConfirmData" y "copyFormToTemplateVars"
+
+$$templateVars{'metaid'} = $FORM::metaid;
+
+
+
+AGREGAR EL NUEVO VALOR A LOS METADATOS
+
+En la parte de "sub createDatasetDocument" agregar una nueva funcion llamada "arkElement", despues de "datasetEnd".
+
+
+$doc .= arkElement();
+
+Crear la función "arkElement()" despues de la funcion (sub titleElement):	
+sub arkElement(){
+	if ( hasContent($FORM::metaid) ) {
+		return "<additionalMetadata><metadata><arkid>" . normalize($FORM::metaid) . "</arkid></metadata></additionalMetadata>\n";
+	}
+}
+
+Si se desea hacer que el elemento ark sea obligatorio al momento de subir un nuevo registro a Metacat se puede agregar lo siguiente despues del abstract en la función "validateParameters":
+	push( @invalidParams, "Please provide an ark identifier." )
+	  unless hasContent($FORM::metaid);
+
+
+
+
+#################### Activación y configuración del protocolo OAI-PMH
+
+Con el fin de garantizar la interoperabilidad entre el Repositorio Institucional y el Repositorio Nacional, es necesario que los metadatos guardados en el repositorio cumplan con el protocolo de OAI-PMH para la cosecha de metadatos. Afortunadamente Metacat soporta este protocolo mediante la implementación de una hoja de estilo XSLT que convierte los metadatos que se encuentran en formato EML a su equivalente de Dublin Core.
+Los pasos para activar esta hoja de estilo se detallan en la sección “14.3. Configuring and Running Metacat OAI-PMH” del manual de Metacat.
+
+Antes de configurar el servidor, es necesario detener el servicio de Tomcat, y posteriormente editar el archivo metacat.properties ubicado en la ruta “/var/lib/tomcat/webapps/metacat/WEB-INF/” y cambiar los siguientes datos por los correspondientes al servidor:
+	oaipmh.repositoryIdentifier	X.X.X.X:8080
+	Identify.adminEmail		admin@localhost
+
+Editar también el archivo web.xml en el mismo directorio WEB-INF de metacat y quitar los comentarios a las secciones correspondientes con servlet-name y servlet-mapping:
+<servlet>
+  <servlet-name>DataProvider</servlet-name>
+  <description>Processes OAI verbs for Metacat OAI-PMH Data Provider (MODP)</description>
+  <servlet-class>edu.ucsb.nceas.metacat.oaipmh.provider.server.OAIHandler</servlet-class>
+  <load-on-startup>4</load-on-startup>
+</servlet>
+
+<servlet-mapping>
+  <servlet-name>DataProvider</servlet-name>
+  <url-pattern>/dataProvider</url-pattern>
+</servlet-mapping>
+
+Después de guardar los cambios en los archivos, se tendrá que iniciar el servicio de tomcat y para verificar el correcto funcionamiento de las hojas de estilo podemos acceder a la dirección:
+	http://direcciondelservidor:8080/metacat/dataProvider?verb=Identify
+Esta dirección contiene información general sobre el repositorio, tal como nombre, URL y correo electrónico.
+La ruta para los metadatos en formato Dublin Core es la siguiente:
+	http://direcciondelservidor:8080/metacat/dataProvider?verb=ListRecords&metadataPrefix=oai_dc
+
+El formato “oai_dc” se adecuó según los lineamientos de OpenAire y de Conacyt para la cosecha de los mismos. Por tal motivo fue necesario modificar el archivo “eml211toDublinCore.xsl” ubicado dentro de tomcat en la carpeta “/oaipmh”. Se modificó este archivo ya que la versión de Metacat que fue instalada utiliza la versión 211 de EML. En caso de utilizar una versión diferente de EML modificar el archivo equivalente.
+En el repositorio de github se encuentra la versión modificada de la plantilla para los metadatos oai_dc, solo hay que tener en cuenta la dirección del servidor ya que se utiliza como parte del identificador de los recursos. Esta plantilla se puede modificar para generar los metadatos necesarios.
+
+
+
+
+#################### OAI-PMH Harvester
+
+Se incluyen las actividades realizadas para crear un cosechador de metadatos en formato oai_dc con el fin de probar la disponibilidad de nuestros metadatos. Las indicaciones oficiales de Metacat se encuentran en su documentación, en la sección “14.3.2. Metacat OAI-PMH Harvester”. 
+Para realizar la configuración y pruebas de "Metaca Harvester" se utilizó una máquina nueva con las características del servidor de Metacat, modificando los archivos “metacat.properties” y “web.xml” como se explicó anteriormente.
+
+Para realizar la cosecha de datos, es necesario ejecutar un script que esta implementado en metacat dentro del directorio de tomcat: “/var/lib/tomcat/webapps/metacat/oaipmh/runHarvester.sh”. El script se modificó debido a la configuración realizada en Metacat quedando de la siguiente manera:
+
+	METACAT_CLASSES=$METACAT_HOME/classes
+	METACAT_LIB=$METACAT_HOME/lib
+	for JAR in $METACAT_LIB/*.jar; do
+	    [ -f "$JAR" ] || continue
+		LIB_JARS="$LIB_JARS:$JAR"
+	done
+	export CLASSPATH=$METACAT_CLASSES:$LIB_JARS
+	cd $METACAT_CLASSES
+	java edu.ucsb.nceas.metacat.oaipmh.harvester.OaipmhHarvester $*
+
+Antes de ejecutar el script, fue necesario crear el directorio “/build/war/WEB-INF/” dentro de metacat y copiar los siguientes archivos ubicados en la carpeta “WEB-INF” de metacat:
+•	auth.properties.metadata.xml
+•	metacat.properties
+•	metacat.properties
+•	metacat.properties.metadata.xml
+Por lo tanto, los archivos anteriores deberán encontrarse en WEB-INF y en el nuevo directorio: “/var/lib/tomcat/webapps/metacat/build/war/WEB-INF/” y verificar que el propietario de los archivos sea “tomcat”.
+
+A pesar de que el protocolo oai_dc esta soportado por Metacat, fue necesario agregarlo como “namespace” y su “schema”. Esto se hace agregando directamente un registro dentro de la tabla xml_catalog dentro de la base de datos de metacat.
+
+Antes de hacer la inserción en la BD, primero se debe de guardar el esquema oai_dc dentro del servidor, para esto basta con visitar el sitio de open aire: http://www.openarchives.org/OAI/2.0/oai_dc.xsd y copiar el contenido del esquema y guardarlo en un archivo nuevo:
+	/var/lib/tomcat/webapps/metacat/schema/dc/dc.xsd
+
+Una vez guardado el esquema, insertar el nuevo registro en la Base de Datos:
+
+	INSERT INTO xml_catalog (entry_type, public_id, system_id) VALUES (‘schema’, ‘http://www.openarchives.org/OAI/2.0/oai_dc/’, ‘/schema/dc/oai_dc.xsd’);
+
+Después de los cambios realizados será necesario reiniciar el servicio de Tomcat.
+
+
+Cuando se quiera ejecutar el script, será necesario indicar el directorio “home” de Metacat, para ello se exportará la variable indicando la ruta:
+	export METACAT_HOME=/var/lib/tomcat/webapps/metacat/WEB-INF
+Finalmente podemos ejecutar el script indicando el nombre de usuario, contraseña, formato y la dirección del proveedor de metadatos:
+
+	sh runHarvester.sh -dn uid=nombre,o=organización,dc=ecoinformatics,dc=org –password contraseña –metadataPrefix oai_dc http://direcciondelrepositorio/metacat/dataProvider
+
+Si no hay errores, el servidor comenzará a recolectar los metadatos del proveedor y los almacenará de manera local. Esta función solo almacena los metadatos, en caso de contener un archivo de datos extra, éste no se guardará de manera local en el servidor.
+
+
+
+
+####################################################
+#CREACION DE IDENTIFICADORES ARK EN SERVIDOR CENTOS#
+####################################################
+
+Instalar el modulo de cpan "Noid"
+	cpan	//Abrir la terminal de cpan
+	install Noid
+
+La instalación de noid puede hacerse en la ruta de /root/perl5/bin/, por lo cual para poder usarlo será
+necesario ejecutarlo como root ó copiarlo en una ruta de usr.
+
+se recomienda crear un directorio por cada "template" que se defina.
+
+En este caso, se creó el directorio "fk1" en el cual se definirá el siguiente template:
+	cd .../fk1/
+
+## Con este comando se creará un template que generará 70728100 identificadores de manera aleatoria y únicos.
+
+	noid dbcreate fk1.redeedek long 00000 lanase.test test/fk
+
+## Si se desea crear un template que genere identificadores de manera ilimitada utilizar el siguiente comando para generar el template en lugar del anterior:
+
+	noid dbcreate fk1.zedeedek long 00000 lanase.test test/fk
+
+
+
+Ahora podemos generar identificadores ark de la siguiente manera:
+	noid mint 1
+
+
+
+
+################## Exportar la BD en formato xml y subirla a metacat ###############
+
+Para ejecutar la consulta en postgresql que realiza la conversion, es necesario hacerlo sin que te solicite la contraseña en el prompt. Para ello creamos un nuevo archivo en el cual se guardará la configuración de la bd, usuario y contraseña. Este archivo debe guardarse en una ruta en la que pueda ser accedido por el servicio Apache, ya que será utilizado en por una aplicación web:
+
+	gedit /path/to/.pgpass
+
+
+En este archivo se agrega una nueva regla para permitir el acceso a un usuario a la BD sin la necesidad de preguntar por la contraseña, ya que aqui se especifica, la sintaxis es 
+
+	server:port:database:username:password
+
+
+Cambiar los permisos del nuevo archivo:
+
+	chmod 0600 /path/to/.pgpass
+
+
+Se debe agregar la ruta del archivo .pgpass a la variable de entorno de la siguiente manera:
+	export PGPASSFILE=/path/to/.pgpass
+
+
+Ahora podemos hacer uso del comando psql para convertir la BD.
+Ejecutamos la siguiente línea:
+	psql -U user -h localhost -d database -c "select_database_to_xml(true,true,'');" > database.xml
+
+Lo siguiente es ejecutar el programa en java que formatea el contenido del archivo xml:
+	java ReplaceFileContents '/path/to/xml_file'
+
+
+
+
+
+
+
+
+
+
+########################################################## Subir archivos a Metacat mediante Script #############################################################
+
+Para subir archivos de datos con meta-datos básicos, empleamos un script create_ark.sh” el cual utiliza la herramienta CURL para realizar conexiones y transferir archivos al servidor de Metacat. El script se encuentra disponible en el repositorio de github. Este script se creó utilizando el script de Lauren Walker (https://projects.ecoinformatics.org/ecoinfo/projects/metacat-5/repository/revisions/9920/entry/test/registry/test-registry-submission.sh).
+
+El script realiza las siguientes tareas:
+1.	Se ubica en la ruta donde se encuentra la plantilla para generar el identificador ARK, este directorio debe tener los permisos necesarios paraa su correcta ejecución. Guarda el id en el archivo "output.txt" y se le asigna a una variable para mandarlo con el resto de los metadatos.
+2.	Iniciar sesión con una cuenta de Metacat para generar “cookies” necesarias para la autenticación.
+3.	Insertar metadatos básicos para asociar un archivo de datos, este paso genera información temporal sobre el archivo a subir.
+4.	Recuperar información referente al archivo de datos.
+5.	Subir los metadatos y archivo de datos a Metacat.
+
+A continuación se explicarán algunas funciones y opciones utilizadas con el comando CURL. Para ver las opciones detalladas del comando CURL, se recomienda visitar su documentación (https://curl.haxx.se/docs/manpage.html).
+
+Con el primer comando “curl” realizamos el inicio de sesión con una cuenta de Metacat, las variables necesarias se envían con la opción --form. Además se guardan las cookies generadas en el archivo “sessionid.txt” con --cookie-jar.
+Los valores importantes son el nombre de usuario (username), que debe seguir la sintaxis de metacat (“uid=nombre,o=organización,dc=ecoinformatics,dc=org”), la contraseña (password) y finalmente la dirección URL del servidor apuntando al archivo register-dataset.cgi. Para guardar la respuesta del servidor a la petición lo hacemos en un archivo “response.txt” con la opción “-o” de curl.
+
+El segundo comando de “curl” envía la información de metadatos y del archivo para que sean verificados por metacat y responda con información temporal necesaria para subir los datos. Se utiliza la opción --cookie para utilizar las cookies generadas anteriormente. En esta parte se envían datos como nombre del creador del archivo, resumen, año y tipo de recursos que se subirán.
+Con la varable “file_0” se especifica la ruta del archivo que se desea subir, y de nuevo guardamos la respuesta del servidor en un archivo con el fin de extraer información necesaria.
+
+Lo siguente que hace el script es extraer tres datos necesarios sobre el archivo que se subirá, estos datos fueron generados por el servidor y se encuentran en el archivo “response.txt”. Las tres variables necesarias son: upload, uploadname y uploadtype. Una vez que tenemos estos valores los guardamos en un archivo “fileDetails.txt”.
+
+Por último se ejecuta otro comando “curl”, el cual subirá la información dentro del servidor de Metacat. Se utilizan de nuevo las cookies guardadas en el archivo “sessionid.txt” y se colocan de nuevo los datos del anterior comando “curl”, agregando los nuevos campos: upload_0, uploadname_0 y uploadtype_0 con los valores extraídos anteriormente. Si el script se ejecuta de manera correcta, en el servidor Metacat se guardará el archivo con sus respectivos metadatos.
+
+
+
+
+
+
+
+
+
+
+
+
+#############################################
+#					NOTAS					#
+#############################################
+
+
+################### Agregar nuevas rutas en apache
+En caso de necesitar que una ruta nueva sea accesible, hacer lo siguiente:
+
+En el archivo httpd.conf agregar la siguiente configuración para permitir el acceso a nuevos directorios en el servicio web apache:
+
+//Para agregar la pagina/directorio de "lanase":
+
+<Directory "/var/www/html/lanase">
+	Options Indexes
+	AllowOverride None
+	Order allow,deny
+	Allow from all
+</Directory>
