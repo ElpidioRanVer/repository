@@ -328,7 +328,6 @@ var load_flag=0;
               $("<br><button id='delete' class='btn btn-default btn-sm' onclick='show_tax(this.title)' title='tax_content'>Cerrar</button>").appendTo($("#tax_content"));
             $("#tax_info").html(result);
             show_tax("tax_content");
-
           }
         });
       }

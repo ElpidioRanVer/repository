@@ -55,12 +55,17 @@ Route::get('import', function(){
 });
 
 //mineRhaegar
+
 Route::get('import2', function(){
 	return view('taxonomic.import2');
 });
 
 Route::get('search', function(){
 	return view('taxonomic.search');
+});
+
+Route::get('searchadv', function(){
+	return view('taxonomic.searchadv');
 });
 
 //endmineRhaegar

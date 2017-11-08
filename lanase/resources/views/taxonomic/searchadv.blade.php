@@ -3,20 +3,21 @@
 
 @section('nav')
 
-	<!--script src="{{ asset('js/bootstrap.min.js') }}"></script-->
   	<script src="{{ asset('js/jquery-3.1.1.min.js') }}"></script>
+  	<script src="{{ asset('js/bootstrap.min.js') }}"></script>
+  	<!--script src="{{ asset('js/materialize.min.js') }}"></script-->
+
 
   	<link rel="stylesheet" type="text/css" href="./css/style.css">
   	<link rel="stylesheet" type="text/css" href="css/resptable.css">
+  	<link rel="stylesheet" type="text/css" href="css/bootstrap.css">
   	<meta name="csrf-token" id="pruba" content="{{ csrf_token() }}" />
 
 @include('admin.nav')
 @endsection
 
 @section('content')
-<br>{{--dd($taxonomic)--}}
-
-
+<br>{{--dd($sinonimo)--}}
 <div class="row">
 	<div class="col s12 m3 l3">
 
@@ -26,7 +27,7 @@
 				<div class="switch">
 					<label>
 						Normal
-						<input type="checkbox" id="mySwitch" >
+						<input type="checkbox" id="mySwitch" checked>
 						<span class="lever"></span>
 						Advanced
 					</label>
@@ -38,7 +39,7 @@
 		    
 		    <div class="row">
 		    	<!--Form Busqueda Normal-->
-		    	<section id="norm">
+		    	<section id="norm" hidden>
 			    	<div class="col s12 ">
 				        <div class="row" id="searching">
 				          <div class="input-field col s12"><!--
@@ -61,7 +62,7 @@
 		{!! Form::close() !!}
 		{!! Form::open(['route' => 'taxonomic.create', 'method' => 'GET']) !!}
 		    	<!-- Form Busqueda Avanzada -->
-		    	<section id="adv" hidden>
+		    	<section id="adv">
 		    		<div class="col s12">
 				        <div class="row" id="scientificname">
 				          <div class="input-field col s12"><!--
@@ -155,7 +156,7 @@
 		<!--Inicio Table-->
 		<div class="row" id="table_content">
 			<div class="col s12" style="overflow:auto;">
-	            <table class="datatable table table-striped centered" cellspacing="0" width="100%">
+	            <table class="datatable bordered striped centered" cellspacing="0" width="100%">
 	                <thead>
 	                    <tr>
 	                        <!--th>ID</th-->
@@ -174,10 +175,10 @@
 	                    </tr>
 	                </thead>
 	                <tbody>
-	                	@foreach($taxonomic as $taxonomica)
+	                	@foreach($taxonomicadv as $taxonomica)
 	                		<tr>
 	                			<!--td>{{$taxonomica->id}}</td-->
-	                			<td><button type="button" class="btn-floating btn-sm waves-effect" onclick="alert('{{$taxonomica}}')"><i class="material-icons md-18">info_outline</i></button></td>
+	                			<td><button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#myModal{{$taxonomica->id}}"><i class="material-icons md-18">info_outline</i></button></td>
 	                			<td>{{$taxonomica->scientific_name}}</td>
 	                			<td>{{$taxonomica->specie}}</td>
 	                			<td>{{$taxonomica->family}}</td>
@@ -193,91 +194,142 @@
 	                	@endforeach
 	                </tbody>
 	            </table>
-	            {!!$taxonomic->appends(Request::all())->render()!!}
-			</div>
-			<div class="col s6 offset-s6">
-				<a href="#" class="btn-success waves-effect waves-light btn-flat" id="btn-success-norm"><i class="material-icons left">cloud_download</i>Descargar Tabla</a>
-			</div>
-		</div>
-		<!--End table-->
-
-		<!--Inicio Table adv-->
-		<div class="row" id="table_content_adv" hidden>
-			<div class="col s12" style="overflow:auto;">
-	            <table class="datatable table table-striped centered" cellspacing="0" width="100%">
-	                <thead>
-	                    <tr>
-	                        <!--th>ID</th-->
-	                        <th>More Info</th>
-							<th>Scientific Name</th>
-							<th>Specie</th>
-							<th>Family</th>
-							<th>Genus</th>
-							<th>Super kingdom</th>
-							<th>Kingdom</th>
-							<th>Phylum</th>
-							<th>Subphylum</th>
-							<th>Order</th>							
-							<th>Tribe</th>
-	                    </tr>
-	                </thead>
-	                <tbody>
-	                	@foreach($taxonomicadv as $taxonomica)
-	                		<tr>
-	                			<!--td>{{$taxonomica->id}}</td-->
-	                			<td><button type="button" class="btn-floating btn-sm waves-effect" onclick="alert('{{$taxonomica}}')"><i class="material-icons md-18">info_outline</i></button></td>
-	                			<td>{{$taxonomica->scientific_name}}</td>
-	                			<td>{{$taxonomica->specie}}</td>
-	                			<td>{{$taxonomica->family}}</td>
-	                			<td>{{$taxonomica->genus}}</td>
-	                			<td>{{$taxonomica->superkingdom}}</td>
-	                			<td>{{$taxonomica->kingdom}}</td>
-	                			<td>{{$taxonomica->phylum}}</td>
-	                			<td>{{$taxonomica->subphylum}}</td>
-	                			<td>{{$taxonomica->order}}</td>
-	                			<td>{{$taxonomica->tribe}}</td>
-	                		</tr>
-	                	@endforeach
-	                </tbody>
-	            </table>
 	            {!!$taxonomicadv->appends(Request::all())->render()!!}
 			</div>
 			<div class="col s6 offset-s6">
-				<a href="#" class="btn-success waves-effect waves-light btn-flat" id="btn-success-adv"><i class="material-icons left">cloud_download</i>Descargar Tabla</a>
+				<a href="#" class="btn-success btn-flat" id="btn-success-norm"><i class="material-icons left">cloud_download</i>Descargar Tabla</a>
 			</div>
 		</div>
-		<!--End table adv-->
+		<!--End table-->
+		<!--button type="button" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#myModal">
+  Launch demo modal
+</button-->
 	</div>
+
+
+
+
+
+<!--#############################################################################################-->
+<!-- Modal -->
+@foreach($taxonomicadv as $taxonomica)
+	<div class="modal fade" id="myModal{{$taxonomica->id}}" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+	  <div class="modal-dialog" role="document">
+	    <div class="modal-content">
+	      <div class="modal-header">
+	        <!--button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button-->
+	        <h4 class="modal-title">{{$taxonomica->scientific_name}}</h4>
+	      </div>
+	      <div class="modal-body">
+
+	      	<div class="row">
+	      		<div class="col s6 m6 l6">
+	      			</p><ins><b>Taxonomic Classification:</b></ins><br>
+			        	<i>
+			        		@if($taxonomica->kingdom)
+				        		<b><em>Kingdom: </em></b>{{$taxonomica->kingdom}}<br>
+				        	@endif
+
+				        	@if($taxonomica->phylum)
+				        		<b><em>Phylum: </em></b>{{$taxonomica->phylum}}<br>
+				        	@endif
+
+				        	@if($taxonomica->class)
+				        		<b><em>Class: </em></b>{{$taxonomica->class}}<br>
+				        	@endif
+
+				        	@if($taxonomica->order)
+				        		<b><em>Order: </em></b>{{$taxonomica->order}}<br>
+				        	@endif
+
+				        	@if($taxonomica->family)
+				        		<b><em>Family: </em></b>{{$taxonomica->family}}<br>
+				        	@endif
+
+				        	@if($taxonomica->subfamily)
+				        		<b><em>Subfamily: </em></b>{{$taxonomica->subfamily}}<br>
+				        	@endif
+
+				        	@if($taxonomica->tribe)
+				        		@if($taxonomica->tribe != 'noneTribe')
+				        			<b><em>Tribe: </em></b>{{$taxonomica->tribe}}<br>
+				        		@endif
+				        	@endif
+
+				        	@if($taxonomica->genus)
+				        		@if($taxonomica->genus != 'noneGenus')
+				        			<b><em>Genus: </em></b>{{$taxonomica->genus}}<br>
+				        		@endif
+				        	@endif
+
+				        	@if($taxonomica->specie)
+				        		<b><em>Specie: </em></b>{{$taxonomica->specie}}<br>
+				        	@endif
+
+				        	@if($taxonomica->scientific_name)
+				        		<b><em>Scientific Name: </em></b>{{$taxonomica->scientific_name}}
+				        	@endif
+			        	</i>
+			        </p>
+	      		</div>
+	      		<div class="col s6 m6 l6">
+	      			{{--
+	      			@if($taxonomica->id == $sinonimo->taxonomy_id)
+	      				<b><ins>Synonym: </ins></b><br>{{$sinonimo->synonym}}<br>
+	      				<!--b><ins>Synonym tID: </ins></b><br-->$sinonimo->taxonomy_id<br>
+	      				<!--b><ins>Synonym ID: </ins></b><br-->$sinonimo->id-
+	      			@endif
+
+	      			@if($taxonomica->id == $vernacular->taxonomy_id)
+	      				<b><ins>Vernacular name: </ins></b><br>{{$vernacular->name}}<br>
+	      			@endif
+
+	      			@if($taxonomica->id == $ncbi->taxonomy_id)
+	      				<b><ins>Vernacular name: </ins></b><br>{{$ncbi}}<br>
+	      			@endif
+	      			@if($taxonomica->id == $external->taxonomy_id)
+	      				<b><ins>Vernacular name: </ins></b><br>{{$external}}<br>
+	      			@endif
+
+	      			--}}
+	      		</div>
+	      	</div>
+	        
+	      </div>
+	      <div class="modal-footer">
+	        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+	      </div>
+	    </div><!-- /.modal-content -->
+	  </div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+@endforeach
+<!--#############################################################################################-->
+
+
+
+
 </div>
 
-<section>
-	<div class="row" id="VistaAdv">
-		<div id="sidebar" class="col s4">
+<script>
 
-		</div>
-		<div class="col s8">
-		</div>
-	</div>
-</section>
+  $(document).ready(function(){
+		// the "href" attribute of the modal trigger must specify the modal ID that wants to be triggered
+	    $('#myModal').modal('hide');  
+	});
 
+</script>
 
-	<script></script>
     <script>
     	
 		$('#mySwitch').click(function(){
 			if ($(this).is(":checked")){
   				$('#adv').show();
   				$('#norm').hide();
-  				//$('#table_content_adv').show();
-  				//$('#table_content').hide();
 			}else{
  				$('#adv').hide();
  				$('#norm').show();
-  				//$('#table_content_adv').hide();
-  				//$('#table_content').show();
 			}
 		});
-
 
 		$(document).ready(function (){
 			function downloadCSVfile($table, filename){
@@ -285,40 +337,9 @@
 				var csv = 'Scientific Name,Super kingdom,Kingdom,Phylum,Subphylum,Order,Family,Genus,Tribe,Specie\n';
 
 
-				@foreach($taxotable as $taxonomica)
+				@foreach($taxotableadv as $taxonomica)
 					csv+= '{{$taxonomica->scientific_name}},{{$taxonomica->superkingdom}},{{$taxonomica->kingdom}},{{$taxonomica->phylum}},{{$taxonomica->subphylum}},{{$taxonomica->order}},{{$taxonomica->family}},{{$taxonomica->tribe}},{{$taxonomica->genus}},{{$taxonomica->specie}}\n';
 				@endforeach 
-
-				 /**
-
-				var $rows = $table.find('tr'),
-				tmpColDel = String.fromCharCode(11),
-            	tmpRowDel = String.fromCharCode(0),
-	            colDel = ',',
-	            rowDel = '\r\n',
-
-	            csv = $rows.map(function(i, row){
-	            	var $row = $(row),
-	                	$colshead = $row.find('th');
-	                return $colshead.map(function(j,colhead){
-	                	var $colhead = $(colhead),
-	                		text = $colhead.text();
-	                    return text.replace(/"/g, '""');
-	                }).get().join(tmpColDel);
-	            }).get().join(tmpRowDel)
-	            	.split(tmpColDel).join(colDel);
-
-	            csv += $rows.map(function(k, row){
-	                var $row = $(row),
-	                	$cols = $row.find('td');
-	                return $cols.map(function(l,col){
-	                    var $col = $(col),
-	                        text = $col.text();
-	                    return text.replace(/"/g, '""');
-	                }).get().join(tmpColDel);
-	            }).get().join(tmpRowDel)
-	                .split(tmpRowDel).join(rowDel)
-	                .split(tmpColDel).join(colDel);*/
 
 	            var csvData = 'data:application/csv;charset=utf-8,'+ encodeURIComponent(csv);
 
@@ -330,7 +351,7 @@
 	        }
 
 	        $(".btn-success").on('click', function (event){
-	            downloadCSVfile.apply(this, [$('#table_content'), 'datatable.csv']);
+	            downloadCSVfile.apply(this, [$('#table_content_adv'), 'datatable.csv']);
 	        });      
     	});    	
     </script>

@@ -14,4 +14,11 @@ class Synonym extends Model
     public function taxonomic_classification() {
     	return $this->belongsTo('App\Taxonomic_Classification', 'taxonomy_id');
     }
+
+##############################Rhaegar################################################
+
+    public function scopeSinonimo($query, $id){
+    	return $query->select('taxonomy_id','synonym')->where('taxonomy_id', 'ILIKE', $id);
+    }
+
 }

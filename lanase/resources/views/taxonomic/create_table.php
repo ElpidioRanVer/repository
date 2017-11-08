@@ -8,7 +8,7 @@ if ($fields && $arr_data) {
 	$content="";
 	$content.= '<div class="sombra"></div><div id="test" name="test"><form action="test" method="post" enctype="multipart/form-data"><input type="hidden" name="_token" value="'.$token.'">';
 	#$content.='<input type="submit" value="Upload Information" name="submit">';
-	$content.= '<br><button class="btn waves-effect waves-light" type="submit" value="Upload Information" name="submit">Upload Information<i 	class="material-icons right">send</i></button>';
+	$content.= '<br><button class="btn waves-effect waves-light" type="submit" value="Upload Information" name="submit">Upload Information<i class="material-icons right">send</i></button>';
 	$content.= '<table class="responstable" id="table_content"><tr><th id=number>No.</th>';
     foreach ($fields as $f) {
     	$content.='<th id="'.$f.'">'.$f.'</th>';
@@ -51,7 +51,7 @@ if ($fields && $arr_data) {
     echo $content.'';
 }
 
-####################################################################################
+#####6###############################################################################
 /*
 ?>
 #este es el de antaño

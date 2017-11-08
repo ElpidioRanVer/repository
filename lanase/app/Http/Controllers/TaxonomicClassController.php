@@ -21,6 +21,9 @@ use App\Distribution;
 
 use App\Specimen;
 
+
+use Illuminate\Support\Facades\Input;
+
 class TaxonomicClassController extends Controller
 {
     /**
@@ -30,12 +33,29 @@ class TaxonomicClassController extends Controller
      */
     public function index(Request $request)
     {
-        $taxonomic = Taxonomic_Classification::search($request->name)->orderBy('scientific_name','ASC')->paginate(10);
-        $taxotable = Taxonomic_Classification::search($request->name)->orderBy('scientific_name', 'ASC')->get();
+        $request->name ? $nombre = $request->name : $nombre = " ";
+        $request->sname ? $snombre = $request->sname : $snombre = " ";
+        $request->specie ? $especie = $request->specie : $especie = " ";
+        $request->family ? $familia = $request->family : $familia = " ";
+        $request->genus ? $genero = $request->genus : $genero = " ";
+        $request->superkingdom ? $sReino = $request->superkingdom : $sReino = " ";
+        $request->kingdom ? $reino = $request->kingdom : $reino = " ";
+        
+        echo "Name: " . $nombre . " >SName: " . $snombre . " >Specie: ". $especie . " >Family: " . $familia . " >Genus: " . $genero . " >SKingdom: " . $sReino . " >Kingdom: " . $reino;
+        
+        $taxonomicadv = Taxonomic_Classification::searchadv($request->sname, $request->specie,$request->family,$request->genus,$request->superkingdom,$request->kingdom)->orderBy('scientific_name','ASC')->paginate(10);
+
+        $taxonomic = Taxonomic_Classification::search($nombre)->orderBy('scientific_name','ASC')->paginate(10);
+
+        $taxotable = Taxonomic_Classification::search($nombre)->orderBy('scientific_name','ASC')->get();
+        $taxotableadv = Taxonomic_Classification::searchadv($request->sname, $request->specie,$request->family,$request->genus,$request->superkingdom,$request->kingdom)->orderBy('scientific_name','ASC')->get();
+
+
         return view('taxonomic.search')->with('taxonomic', $taxonomic)
-        ->with('taxotable', $taxotable);
-        #$specimens = Specimen::orderBy('id','ASC')->paginate(10);
-        #return view('taxonomic.search')->with('specimens', $specimens);
+                                        ->with('taxotable', $taxotable)
+                                        ->with('request', $request)
+                                        ->with('taxotableadv', $taxotableadv)
+                                        ->with('taxonomicadv', $taxonomicadv);
     }
 
     /**
@@ -43,10 +63,141 @@ class TaxonomicClassController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function create()
-    {
-        //
-        return view('taxonomic.create');
+    public function create(Request $request){
+
+        $taxonomicadv = Taxonomic_Classification::searchadv($request->sname, $request->specie,$request->family,$request->genus,$request->superkingdom,$request->kingdom)->orderBy('scientific_name','ASC')->paginate(10);
+
+        $taxotableadv = Taxonomic_Classification::searchadv($request->sname, $request->specie,$request->family,$request->genus,$request->superkingdom,$request->kingdom)->orderBy('scientific_name','ASC')->get();
+
+        $sinonimo = Synonym::sinonimo($request->id)->get();#->first();#where('taxonomy_id', 'ILIKE', $request->id)->get()->first();
+
+        $sinonimus = Synonym::join('Taxonomic_Classification', 'Synonym.taxonomy_id', '=', 'Taxonomic_Classification.id')->select('Synonym.synonym');
+
+        $ncbi = Ncbi_Record::/*join('Ncbi_Record.taxonomy_id', '=', 'Taxonomic_Classification.id')->*/select('taxonomy_id', 'direct_links')->get();
+
+        $vernacular = Vernacular_Name::/*join('Vernacular_Name.taxonomy_id', '=', 'Taxonomic_Classification.id')->*/select('taxonomy_id','name')->get();#->first();
+
+        $external = External_Link::/*join('External_Link.taxonomy_id', '=', 'Taxonomic_Classification.id')->*/select('taxonomy_id', 'url', 'subject')->get();
+
+###########################################################################################
+/*
+        echo "sinonimo<br>";
+        #$sinon["id"]["sinonimo"] = " ";
+        $siin = array($sinonimo);
+        foreach ($sinonimo as $sin) {
+            if(substr($sin, 19, 1) == ','){
+                echo substr($sin, 15, 4) . " | ";
+                echo substr($sin, 31, -2) . "<br>";
+                #$sinon["id"] = substr($sin, 15, 4);
+                #$sinon["sinonimo"] = substr($sin, 31, -2);
+                #$sinon compact(mixed substr($sin, 15, 4), mixed substr($sin, 31, -2));
+                $sinon = array('id' => substr($sin, 15, 4), 
+                               'sinonimo' => substr($sin, 31, -2),);
+
+            }
+            if(substr($sin, 20, 1) == ','){
+                echo substr($sin, 15, 5) . " | ";
+                echo substr($sin, 31+1, -2) . "<br>";
+                #$sinon["id"] = substr($sin, 15, 5);
+                #$sinon["sinonimo"] = substr($sin, 31+1, -2);
+                #$sinon compact(mixed substr($sin, 15, 5), mixed substr($sin, 31+1, -2));
+                $sinon = array('id' => substr($sin, 15, 4+1), 
+                               'sinonimo' => substr($sin, 31+1, -2),);
+            }
+            if(substr($sin, 21, 1) == ','){
+                echo substr($sin, 15, 6) . " | ";
+                echo substr($sin, 31+2, -2) . "<br>";
+                #$sinon["id"] = substr($sin, 15, 6);
+                #$sinon["sinonimo"] = substr($sin, 31+2, -2);
+                #$sinon compact(mixed substr($sin, 15, 6), mixed substr($sin, 31+2, -2));
+                $sinon = array('id' => substr($sin, 15, 4+2), 
+                               'sinonimo' => substr($sin, 31+2, -2),);
+            }
+            if(substr($sin, 22, 1) == ','){
+                echo substr($sin, 15, 7) . " | ";
+                echo substr($sin, 31+3, -2) . "<br>";
+                #$sinon["id"] = substr($sin, 15, 7);
+                #$sinon["sinonimo"] = substr($sin, 31+3, -2);
+                #$sinon compact(mixed substr($sin, 15, 7), mixed substr($sin, 31+3, -2));
+                $sinon = array('id' => substr($sin, 15, 4+3), 
+                               'sinonimo' => substr($sin, 31+3, -2),);
+            }
+        }
+        echo "<br>vernacular<br>";
+
+        foreach ($vernacular as $ver) {
+            #echo $ver . "<br>";
+            if(substr($ver, 19, 1) == ','){
+                echo substr($ver, 15, 4) . " | ";
+                echo substr($ver, 28, -2) . "<br>";
+            }
+            if(substr($ver, 20, 1) == ','){
+                echo substr($ver, 15, 5) . " | ";
+                echo substr($ver, 28+1, -2) . "<br>";
+            }
+            if(substr($ver, 21, 1) == ','){
+                echo substr($ver, 15, 6) . " | ";
+                echo substr($ver, 28+2, -2) . "<br>";
+            }
+            if(substr($ver, 22, 1) == ','){
+                echo substr($ver, 15, 7) . " | ";
+                echo substr($ver, 28+3, -2) . "<br>";
+            }
+        }
+        echo "<br>ncbi<br>";
+
+        foreach ($ncbi as $nc) {
+            #echo $nc . "<br>";
+            if(substr($nc, 19, 1) == ','){
+                echo substr($nc, 15, 4) . " | ";
+                echo substr($nc, 36, -2) . "<br>";
+            }
+            if(substr($nc, 20, 1) == ','){
+                echo substr($nc, 15, 5) . " | ";
+                echo substr($nc, 36+1, -2) . "<br>";
+            }
+            if(substr($nc, 21, 1) == ','){
+                echo substr($nc, 15, 6) . " | ";
+                echo substr($nc, 36+2, -2) . "<br>";
+            }
+            if(substr($nc, 22, 1) == ','){
+                echo substr($nc, 15, 7) . " | ";
+                echo substr($nc, 36+3, -2) . "<br>";
+            }
+        }
+        echo "<br>external link<br>";
+
+        foreach ($external as $ex) {
+            #echo $ex . "<br>";
+            if(substr($ex, 19, 1) == ','){
+                echo substr($ex, 15, 4) . " | ";
+                echo substr($ex, 26, -1) . "<br>";
+            }
+            if(substr($ex, 20, 1) == ','){
+                echo substr($ex, 15, 5) . " | ";
+                echo substr($ex, 26+1, -1) . "<br>";
+            }
+            if(substr($ex, 21, 1) == ','){
+                echo substr($ex, 15, 6) . " | ";
+                echo substr($ex, 26+2, -1) . "<br>";
+            }
+            if(substr($ex, 22, 1) == ','){
+                echo substr($ex, 15, 7) . " | ";
+                echo substr($ex, 26+3, -1) . "<br>";
+            }
+        }
+
+*/####################################################################################
+
+
+        return view('taxonomic.searchadv')->with('taxotableadv', $taxotableadv)
+                                          ->with('taxonomicadv', $taxonomicadv)
+                                          ->with('sinonimo', $sinonimo)
+                                          ->with('sinonimus', $sinonimus)
+                                          ->with('ncbi', $ncbi)
+                                          ->with('vernacular', $vernacular)
+                                          ->with('external', $external)
+                                          ->with('request', $request);
     }
 
     /**
@@ -73,7 +224,7 @@ class TaxonomicClassController extends Controller
             echo "<b>".$dataset_id."</b><br>";
 
             echo("Total rows: ".$no_rows."<br>");
-            dd($request->id);
+            #dd($request->id);
             #dd($request->rank_marker140);
             #dd($request->record_name140);
             #dd($request->direct_links140);
